@@ -62,9 +62,13 @@ public class Client {
 
         HelloService helloService = ServiceProxy.getServiceProxy(HelloService.class);
 
-        String a= helloService.hello();
-        //真实的时候这里会由spring在init的时候生成代理实例
-        System.out.println(a);
+
+        for(int i=0;i<1000;i++){
+            String a= helloService.hello();
+            //真实的时候这里会由spring在init的时候生成代理实例
+            System.out.println(a);
+
+        }
 
 
 
