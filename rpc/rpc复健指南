@@ -1,0 +1,68 @@
+启动server：
+注册服务,netty
+a、线程
+netty.read-> 提交到业务线程池->
+b、线程
+                            decode->method.invoke->business->netty.writeFlush
+
+
+再启动client：
+
+线程a.(业务线程)
+client->registry->service->proxy->encode->netty->invokeFuture.wait->                                                      ->业务结果
+线程b、(netty线程)
+                                                                      netty->提交msg到业务线程池
+线程c、(业务线程)
+                                                                                             ->decode->invokeFuture.finish
+
+
+
+有很多添加的优化项：
+
+1、参数传递用高性能的序列化方案，
+2、添加在发送前的钩子，拦截器提供切面能力
+3、使用ByteBuf的 zero copy模式，通过指针操作buffer 的多次分配 只在序列化时使用一次，
+4、注册中心真实节点（Eureka，Nacos，Zookeeper）
+5、代理类的生成可以选用非jdk代理，采用asm字节码生成方案。
+6、优雅下线
+7、接口限流，更优化的负载均衡策略。
+8、透传全局的traceId，为上下文业务做trace。
+
+
+zero copy ：直接发送在 socket buffer -> c heap ，减少了 socket buffer-> cheap->Jvm heap
+
+1. Netty的文件传输调用FileRegion包装的transferTo方法，可以直接将文件缓冲区的数据发送到目标Channel，避免通过循环write方式导致的内存拷贝问题。
+2. Netty提供CompositeByteBuf类, 可以将多个ByteBuf合并为一个逻辑上的ByteBuf, 避免了各个ByteBuf之间的拷贝。
+3. 通过wrap操作, 我们可以将byte[]数组、ByteBuf、ByteBuffer等包装成一个Netty ByteBuf对象, 进而避免拷贝操作。
+4. ByteBuf支持slice操作，可以将ByteBuf分解为多个共享同一个存储区域的ByteBuf, 避免内存的拷贝。
+
+
+
+所以在netty中尽量使用netty提供的ByteBuf的操作，减少byte[] 的拷贝行为，
+
+
+
+对于cluster来说：
+failFast
+
+快速失败, 只发起一次调用, 失败立即报错(jupiter缺省设置)
+*
+* 通常用于非幂等性的写操作.
+
+, failover
+ 失败自动切换, 当出现失败, 重试其它服务器, 要注意的是重试会带来更长的延时.
+*
+* 建议只用于幂等性操作, 通常比较合适用于读操作.
+*
+* 注意failover不能支持广播的调用方式.
+
+,failSafe
+: 失败安全, 同步调用时发生异常时只打印日志.
+*
+* 通常用于写入审计日志等操作.
+
+netty整个过程应该是纯异步工作的。netty的work线程只做io，
+
+
+
+
